@@ -54,8 +54,14 @@ import UIKit
             print("Unable to layout attachment views. No NSTextStorage.")
             return
         }
+        
+        guard let textView = self.textView else{
+            print("Unable to layout attachment views. No UITextView.")
+            return
+        }
 
-        // Now do the update.
+        // Gather up all of the attachments
+        var attachments = [(WPTextAttachment, NSRange)]()
         textStorage.enumerateAttribute(.attachment,
             in: NSMakeRange(0, textStorage.length),
             options: [],
@@ -63,39 +69,31 @@ import UIKit
                 guard let attachment = object as? WPTextAttachment else {
                     return
                 }
-                self.layoutAttachmentViewForAttachment(attachment, atRange: range)
+                
+                attachments.append((attachment, range))
         })
-    }
-
-
-    /// Updates the layout of the attachment view for the specified attachment by
-    /// creating a new exclusion path for the view based on the location of the
-    /// specified attachment, and the frame and alignmnent of the view.
-    ///
-    /// - Parameters:
-    ///     - attachment: The WPTextAttachment
-    ///     - range: The range of the WPTextAttachment in the textView's NSTextStorage
-    ///
-    fileprivate func layoutAttachmentViewForAttachment(_ attachment: WPTextAttachment, atRange range: NSRange) {
-        guard
-            let textView = textView,
-            let attachmentView = attachmentViews[attachment.identifier] else {
-            return
-        }
-
-        // Make sure attachments are correctly laid out.
-        layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
+        
+        // Invalidate the layout wherever attachments are
+        let combinedRange = attachments.reduce(NSRange(location: 0, length: 0)) { $0.union($1.1) }
+        layoutManager.invalidateLayout(forCharacterRange: combinedRange, actualCharacterRange: nil)
         layoutManager.ensureLayout(for: textView.textContainer)
-
-        let frame = textView.frameForTextInRange(range)
-        if frame == infiniteFrame {
-            return
+        
+        // Make sure attachments are correctly laid out.
+        attachments.forEach { (attachment, range) in
+            
+            guard let attachmentView = attachmentViews[attachment.identifier] else {
+                return
+            }
+            
+            let frame = textView.frameForTextInRange(range)
+            if frame == infiniteFrame {
+                return
+            }
+            
+            attachmentView.view.frame = frame
         }
-
-        attachmentView.view.frame = frame
     }
-
-
+    
     /// Called initially during the initial set up of the manager.
     //  Should be called whenever the UITextView's attributedText property changes.
     /// After resetting the attachment manager, this method loops over any
